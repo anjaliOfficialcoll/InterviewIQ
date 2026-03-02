@@ -1,5 +1,12 @@
 
-    const API_BASE = "https://interviewiq-production-b2a2.up.railway.app";
+    // Auto-detect environment based on domain
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_BASE = isLocal 
+      ? 'http://localhost:5000'
+      : 'https://interviewiq-production-b2a2.up.railway.app'; // Replace with YOUR Railway backend URL
+    
+    console.log('🔗 Backend URL:', API_BASE);
+    console.log('🌐 Current hostname:', window.location.hostname);
     
     // State Management
     let currentRole = "";
@@ -80,6 +87,7 @@
       analysisCard.style.display = 'none';
 
       try {
+        console.log('Analyzing resume, calling:', `${API_BASE}/analyze-resume`);
         const resumeBase64 = await fileToBase64(resumeFile);
 
         const response = await fetch(`${API_BASE}/analyze-resume`, {
@@ -92,12 +100,17 @@
           })
         });
 
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
         const analysis = data.analysis || 'No analysis returned.';
         analysisTextElement.textContent = analysis;
         analysisCard.style.display = 'block';
         tryPrefillRoleAndDifficulty(analysis);
       } catch (error) {
+        console.error('Resume analysis error:', error);
         analysisTextElement.textContent = 'Resume analysis is currently unavailable. You can continue by selecting role and difficulty manually.';
         analysisCard.style.display = 'block';
       } finally {
@@ -161,16 +174,22 @@
       document.getElementById('answerText').value = '';
 
       try {
+        console.log('Loading question, calling:', `${API_BASE}/generate-question`);
         const res = await fetch(`${API_BASE}/generate-question`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: currentRole, difficulty: currentDifficulty })
         });
 
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
         const data = await res.json();
         currentQuestion = data.question || 'Failed to load question';
         questionText.textContent = currentQuestion;
       } catch (error) {
+        console.error('Question loading error:', error);
         questionText.textContent = 'Error loading question. Please try again.';
       } finally {
         loading.classList.remove('show');
