@@ -34,8 +34,8 @@ app.use(express.static(frontendPath));
 // API routes
 app.use("/", interviewRoutes);
 
-// Fallback to index.html for SPA routing
-app.get('*', (req, res) => {
+// Fallback to index.html for SPA routing (catch-all for unmatched routes)
+app.use((req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
