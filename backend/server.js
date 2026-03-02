@@ -27,6 +27,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check and diagnostics endpoint
+app.get('/health', (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  res.json({
+    message: "Backend is running!",
+    geminiApiKey: apiKey ? "✅ Found" : "❌ Not found",
+    apiKeyLength: apiKey ? apiKey.length : 0,
+    apiKeyStart: apiKey ? apiKey.substring(0, 15) + "..." : "N/A"
+  });
+});
+
 // Serve static frontend files
 const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
