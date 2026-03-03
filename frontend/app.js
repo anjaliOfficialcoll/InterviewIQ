@@ -68,6 +68,40 @@
       currentDifficulty = suggestedDifficulty;
     }
 
+    function mapFallbackReason(reason) {
+      if (!reason) {
+        return 'AI analysis is temporarily unavailable. You can continue interview practice normally.';
+      }
+
+      const lower = String(reason).toLowerCase();
+
+      if (lower.includes('gemini_api_key') || lower.includes('not initialized') || lower.includes('not found in environment')) {
+        return 'AI analysis is not configured on the server right now. Please try again shortly.';
+      }
+
+      if (lower.includes('api key not valid') || lower.includes('invalid api key') || lower.includes('unauthenticated') || lower.includes('401')) {
+        return 'AI service authentication failed on the server. Please try again in a few minutes.';
+      }
+
+      if (lower.includes('quota') || lower.includes('resource_exhausted') || lower.includes('429') || lower.includes('rate')) {
+        return 'AI service is currently busy or quota has been reached. Please try again a little later.';
+      }
+
+      if (lower.includes('permission') || lower.includes('forbidden') || lower.includes('403')) {
+        return 'AI access is currently restricted on the server. Please try again later.';
+      }
+
+      if (lower.includes('timeout') || lower.includes('deadline exceeded') || lower.includes('etimedout')) {
+        return 'AI request timed out. Please retry in a moment.';
+      }
+
+      if (lower.includes('model') && (lower.includes('not found') || lower.includes('unsupported'))) {
+        return 'AI model is temporarily unavailable on the server. Please try again soon.';
+      }
+
+      return 'AI analysis is temporarily unavailable. You can continue interview practice normally.';
+    }
+
     async function analyzeResume() {
       if (!resumeFile) {
         alert('Please upload a PDF resume first.');
@@ -110,7 +144,10 @@
         }
 
         const analysis = data.analysis || 'No analysis returned.';
-        analysisTextElement.textContent = analysis;
+        const fallbackReason = data.source === 'fallback'
+          ? `\n\nNote: ${mapFallbackReason(data.fallbackReason)}`
+          : '';
+        analysisTextElement.textContent = analysis + fallbackReason;
         analysisCard.style.display = 'block';
         analysisCard.style.borderColor = '';
         tryPrefillRoleAndDifficulty(analysis);

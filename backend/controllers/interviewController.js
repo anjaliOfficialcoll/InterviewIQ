@@ -3,6 +3,17 @@ import { getFallbackQuestion } from "../utils/fallbackQuestions.js";
 import { getFallbackFeedback } from "../utils/fallbackFeedback.js";
 import { getFallbackResumeFeedback } from "../utils/fallbackResumeFeedback.js";
 
+function looksLikeResumeFileName(fileName = "") {
+  const name = String(fileName || "").toLowerCase();
+  const positiveKeywords = ["resume", "cv", "curriculum", "vitae", "profile"];
+  const negativeKeywords = ["invoice", "receipt", "report", "presentation", "slides", "assignment", "notes", "image", "photo", "screenshot"];
+
+  const hasPositive = positiveKeywords.some((keyword) => name.includes(keyword));
+  const hasNegative = negativeKeywords.some((keyword) => name.includes(keyword));
+
+  return hasPositive && !hasNegative;
+}
+
 export async function generateQuestion(req, res) {
   const { role, difficulty } = req.body;
 
@@ -100,10 +111,22 @@ export async function analyzeResume(req, res) {
         analysis: error.message 
       });
     }
+
+    const safeFileName = fileName || "resume.pdf";
+    if (!looksLikeResumeFileName(safeFileName)) {
+      const fileNameError = "The uploaded file name does not look like a resume/CV. Please upload a resume file (for example: resume.pdf or cv.pdf).";
+      console.warn("⚠️  Filename-based resume validation failed while Gemini is unavailable");
+      return res.status(400).json({
+        error: fileNameError,
+        analysis: fileNameError,
+        source: "filename-validation",
+        fallbackReason: error.message,
+      });
+    }
     
     console.warn("⚠️  Using fallback resume feedback instead");
-    const fallback = getFallbackResumeFeedback(fileName || "resume.pdf");
-    return res.json({ analysis: fallback, source: "fallback" });
+    const fallback = getFallbackResumeFeedback(safeFileName);
+    return res.json({ analysis: fallback, source: "fallback", fallbackReason: error.message });
   }
 }
 

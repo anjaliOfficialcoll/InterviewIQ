@@ -4,11 +4,12 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import interviewRoutes from "./routes/interviewRoutes.js";
-
-dotenv.config();
+import { getGeminiDiagnostics } from "./services/geminiService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const app = express();
 
@@ -29,12 +30,13 @@ app.use((req, res, next) => {
 
 // Health check and diagnostics endpoint
 app.get('/health', (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const gemini = getGeminiDiagnostics();
   res.json({
     message: "Backend is running!",
-    geminiApiKey: apiKey ? "✅ Found" : "❌ Not found",
-    apiKeyLength: apiKey ? apiKey.length : 0,
-    apiKeyStart: apiKey ? apiKey.substring(0, 15) + "..." : "N/A"
+    geminiApiKey: gemini.apiKeyConfigured ? "✅ Found" : "❌ Not found",
+    modelInitialized: gemini.modelInitialized,
+    modelName: gemini.modelName,
+    initializationError: gemini.initializationError
   });
 });
 

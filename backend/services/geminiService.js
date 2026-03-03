@@ -1,31 +1,45 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Load environment variables FIRST before reading them
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const apiKey = process.env.GEMINI_API_KEY;
 
 console.log("🔑 API Key Status:", apiKey ? "✅ Found" : "❌ NOT FOUND");
-if (apiKey) {
-  console.log("🔑 API Key (first 20 chars):", apiKey.substring(0, 20) + "...");
-}
 
 let genAI;
 let model;
+let modelName = "gemini-1.5-flash";
+let initializationError = null;
 
 if (apiKey) {
   try {
     genAI = new GoogleGenerativeAI(apiKey);
     model = genAI.getGenerativeModel({
-      model: "gemini-flash-latest", // Use the latest flash model for best performance
+      model: modelName,
     });
-    console.log("✅ Gemini AI initialized successfully with model: gemini-1.5-flash");
+    console.log(`✅ Gemini AI initialized successfully with model: ${modelName}`);
   } catch (error) {
+    initializationError = error.message;
     console.error("❌ Failed to initialize Gemini AI:", error.message);
   }
 } else {
+  initializationError = "GEMINI_API_KEY not found in environment variables";
   console.warn("⚠️  GEMINI_API_KEY not found in environment variables. Using fallback responses only.");
+}
+
+export function getGeminiDiagnostics() {
+  return {
+    apiKeyConfigured: Boolean(apiKey),
+    modelInitialized: Boolean(model),
+    modelName,
+    initializationError,
+  };
 }
 
 export async function generateQuestionFromAI(prompt) {
