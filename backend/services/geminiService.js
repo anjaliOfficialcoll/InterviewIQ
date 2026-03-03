@@ -14,15 +14,65 @@ console.log("🔑 API Key Status:", apiKey ? "✅ Found" : "❌ NOT FOUND");
 
 let genAI;
 let model;
-let modelName = "gemini-1.5-flash";
+const modelCandidates = (
+  process.env.GEMINI_MODEL_CANDIDATES
+    ? process.env.GEMINI_MODEL_CANDIDATES.split(",").map((name) => name.trim()).filter(Boolean)
+    : ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest", "gemini-flash-latest", "gemini-1.5-flash"]
+);
+let activeModelIndex = 0;
+let modelName = modelCandidates[activeModelIndex];
 let initializationError = null;
+
+function setActiveModelByIndex(index) {
+  activeModelIndex = index;
+  modelName = modelCandidates[activeModelIndex];
+  model = genAI.getGenerativeModel({ model: modelName });
+}
+
+function isModelUnavailableError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("not supported for generatecontent") ||
+    message.includes("models/") && message.includes("not found") ||
+    message.includes("404 not found")
+  );
+}
+
+async function generateContentWithModelFallback(content) {
+  if (!model) {
+    throw new Error("Gemini API not initialized. Missing GEMINI_API_KEY.");
+  }
+
+  let lastError;
+
+  for (let attempt = 0; attempt < modelCandidates.length; attempt++) {
+    try {
+      const result = await model.generateContent(content);
+      const response = await result.response;
+      initializationError = null;
+      return response.text();
+    } catch (error) {
+      lastError = error;
+      initializationError = error.message;
+
+      if (isModelUnavailableError(error) && activeModelIndex < modelCandidates.length - 1) {
+        const previousModel = modelName;
+        setActiveModelByIndex(activeModelIndex + 1);
+        console.warn(`⚠️  Model ${previousModel} unavailable. Switching to ${modelName}`);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError || new Error("Unable to generate content from Gemini API.");
+}
 
 if (apiKey) {
   try {
     genAI = new GoogleGenerativeAI(apiKey);
-    model = genAI.getGenerativeModel({
-      model: modelName,
-    });
+    setActiveModelByIndex(0);
     console.log(`✅ Gemini AI initialized successfully with model: ${modelName}`);
   } catch (error) {
     initializationError = error.message;
@@ -38,19 +88,16 @@ export function getGeminiDiagnostics() {
     apiKeyConfigured: Boolean(apiKey),
     modelInitialized: Boolean(model),
     modelName,
+    modelCandidates,
     initializationError,
   };
 }
 
 export async function generateQuestionFromAI(prompt) {
-  if (!model) {
-    throw new Error("Gemini API not initialized. Missing GEMINI_API_KEY.");
-  }
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const text = await generateContentWithModelFallback(prompt);
     console.log("✅ Question generated successfully via Gemini API");
-    return response.text();
+    return text;
   } catch (error) {
     console.error("❌ Gemini API error in generateQuestionFromAI:", error.message);
     console.error("Full error:", error);
@@ -59,14 +106,10 @@ export async function generateQuestionFromAI(prompt) {
 }
 
 export async function evaluateAnswerFromAI(prompt) {
-  if (!model) {
-    throw new Error("Gemini API not initialized. Missing GEMINI_API_KEY.");
-  }
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const text = await generateContentWithModelFallback(prompt);
     console.log("✅ Answer evaluated successfully via Gemini API");
-    return response.text();
+    return text;
   } catch (error) {
     console.error("❌ Gemini API error in evaluateAnswerFromAI:", error.message);
     console.error("Full error:", error);
@@ -75,10 +118,7 @@ export async function evaluateAnswerFromAI(prompt) {
 }
 
 export async function analyzeResumeFromAI({ resumeBase64, mimeType = "application/pdf", fileName = "resume.pdf" }) {
-  if (!model) {
-    throw new Error("Gemini API not initialized. Missing GEMINI_API_KEY.");
-  }
-  
+
   // First, validate if the uploaded file is actually a resume
   const validationPrompt = `
   Look at this uploaded document and determine if it is a valid resume/CV.
@@ -95,7 +135,7 @@ export async function analyzeResumeFromAI({ resumeBase64, mimeType = "applicatio
 
   try {
     // Validate the document first
-    const validationResult = await model.generateContent([
+    const validationTextRaw = await generateContentWithModelFallback([
       { text: validationPrompt },
       {
         inlineData: {
@@ -105,8 +145,7 @@ export async function analyzeResumeFromAI({ resumeBase64, mimeType = "applicatio
       },
     ]);
 
-    const validationResponse = await validationResult.response;
-    const validationText = validationResponse.text().trim().toUpperCase();
+    const validationText = validationTextRaw.trim().toUpperCase();
 
     console.log("📄 Resume validation result:", validationText);
 
@@ -137,7 +176,7 @@ export async function analyzeResumeFromAI({ resumeBase64, mimeType = "applicatio
   File name: ${fileName}
   `;
 
-    const result = await model.generateContent([
+    const text = await generateContentWithModelFallback([
       { text: analysisPrompt },
       {
         inlineData: {
@@ -146,10 +185,8 @@ export async function analyzeResumeFromAI({ resumeBase64, mimeType = "applicatio
         },
       },
     ]);
-
-    const response = await result.response;
     console.log("✅ Resume analyzed successfully via Gemini API");
-    return response.text();
+    return text;
   } catch (error) {
     console.error("❌ Gemini API error in analyzeResumeFromAI:", error.message);
     console.error("Full error:", error);
@@ -158,14 +195,10 @@ export async function analyzeResumeFromAI({ resumeBase64, mimeType = "applicatio
 }
 
 export async function generateHintFromAI(prompt) {
-  if (!model) {
-    throw new Error("Gemini API not initialized. Missing GEMINI_API_KEY.");
-  }
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const text = await generateContentWithModelFallback(prompt);
     console.log("✅ Hint generated successfully via Gemini API");
-    return response.text();
+    return text;
   } catch (error) {
     console.error("❌ Gemini API error in generateHintFromAI:", error.message);
     console.error("Full error:", error);
